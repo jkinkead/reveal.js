@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
 
-    <title>Guice and Dependency Injection in Scala</title>
+    <title>Monads in Scala</title>
 
     <meta name="description" content="">
     <meta name="author" content="Jesse Kinkead">
@@ -37,107 +37,421 @@
     <div class="reveal">
       <div class="slides">
         <section>
-          <h2>Dependency Injection in Scala with Guice</h2>
-          <p>What it's good for, what's it's not so good for, and best-practices.</p>
+          <h2>Monads in Scala</h2>
+          <p>What are Monads, and how they're useful in Scala</p>
         </section>
 
         <section>
           <section>
-            <h3>What is this "Dependency Injection", anyway?</h3>
-            <p>Short answer: A design pattern where a class doesn't build its own dependencies.</p>
+            <h2>What is a monad?</h2>
+            <p>A monad is a container that supports a specific set of operations.</p>
           </section>
           <section>
-            <h3>So . . . "dependencies"?</h3>
-            <p>A class has a number of "dependencies" - meaning any other class it uses during its
-            operation. This term is especially used for resources that might be shared with other
-            classes.</p>
+            <h3>If you want to read more, <a href="https://en.wikipedia.org/wiki/Monad_(functional_programming)">Wikipedia has you covered.</a></h3>
+            <p>I don't recommend this, as it's far too technical, and all the examples are in Haskell.</p>
+          </section>
+        </section>
+
+        <section>
+          <h2>Monads are parameterized types</h2>
+          <p>Because monads are containers, they will be parameterized in the type they contain. In Scala scala terms, they will be a class or trait with a type parameter.</p>
+        </section>
+
+        <section>
+          <section>
+            <h2>Basic operations</h2>
+            <p>To the best of my understanding, there are two required operations that make up a monad: a constructor ("return") and a map function ("bind").</p>
+            <p>For these slides, I'll use the type <code>Mon[T]</code>:</p>
+<pre><code class="scala">
+class Mon[T]
+
+object Mon
+
+</code></pre>
           </section>
           <section>
-            <h3>Practically speaking . . .</h3>
-            <p>When a class is "injected" all it means is its member variables are passed in through
-            a constructor or setter methods. It also means that external libraries are called
-            through instances of a class, rather than using methods on objects.</p>
-          </section>
-          <section>
-            <h3>An example</h3>
-            <p>A class that constructs its own dependencies:
-            <pre><code class="scala">
-class MyServiceCaller {
-  private val myService = new RemoteService("somehost.com:8080")
+            <h3>Constructor</h3>
+            <p>Construction can be thought of as wrapping a value. In scala, this is generally an <code>apply</code> method:</p>
+<pre><code class="scala">
+class Mon[T](wrapped: T)
+
+object Mon {
+  def apply[T](value: T) = new Mon(value)
 }
-            </code></pre>
-            </p>
-            <div class="fragment">
-            <p>A class with injected dependencies:</p>
-            <pre><code class="scala">
-class MyServiceCaller (myService: RemoteService)
-            </code></pre>
-            </div>
-            <p class="fragment">. . . yes, it's that simple.</p>
-          </section>
-        </section>
 
-        <section>
-          <section>
-            <h3>Motivations - Why is this pattern useful?</h3>
+val unwrapped: Int = 123
+val wrapped: Mon[Int] = Mon(123)
+
+</code></pre>
           </section>
           <section>
-            <h3>Testability</h3>
-            <p>How would you unit test this?</p>
-            <pre><code class="scala">
-class MyServiceCaller {
-  val serviceInstance = GlobalService.instance
-  def methodToTest = { serviceInstance.remoteCall() }
+            <h3>Map function</h3>
+            <p>Formally, a monadic mapping is a function that takes two arguments - <code>Mon[T]</code>, and a function from <code>T</code> to <code>Mon[U]</code> - and returns <code>Mon[U]</code>.</p>
+            <p> In Scala, we call the formal "bind" <code>flatMap</code>, but usually use the more convenient <code>map</code> construct:</p>
+<pre><code class="scala">
+class Mon[T](wrapped: T) {
+  def map[U](operation: (T => U): Mon[U] = {
+    Mon(operation(wrapped))
+  }
 }
-            </code></pre>
-            <p class="fragment"><a href="https://github.com/google/guice/wiki/Motivation">Google's Guice Motivation page</a> goes into much more detail on testability, and is worth a read.</p>
+
+val five: Mon[Int] = Mon(5)
+val ten: Mon[Int] = five map { _ * 2 }
+
+</code></pre>
           </section>
           <section>
-            <h3>Controlled initialization</h3>
-            <p>When will <code>instance</code> be initialized?</p>
-            <pre><code class="scala">
-object GlobalService { val instance = new GlobalService() }
-            </code></pre>
-            <div class="fragment">
-              <p>When the class <code>GlobalService</code> is loaded, which is normally the first
-              time it's referenced while your application is running.</p>
-              <p>This is rarely mentioned as a benefit of dependency injection, but it's one of the
-              main reasons I'm a fan.</p>
-            </div>
-          </section>
-          <section>
-            <h3>Function-like classes</h3>
-            <p>As an awesome side-effect of following the dependency injection pattern, a class will
-            have all of its inputs and outputs clearly declared. If you're not using setters, these
-            will all be constructor parameters, making the whole class act like a pure function.</p>
-            <p>This has all the benefits of pure functions - classes are much easier to move around
-            and refactor, and analysis of execution side-effects becomes a lot more
-            straightforward.</p>
+            <h3>Example <code>flatMap</code></h3>
+<pre><code class="scala">
+class Mon[T](wrapped: T) {
+  def flatMap[U](operation: (T => Mon[U]): Mon[U] = {
+    operation(wrapped)
+  }
+}
+
+val five: Mon[Int] = Mon(5)
+val ten: Mon[Int] = five map { value => Mon(value * 2) }
+
+</code></pre>
           </section>
         </section>
 
         <section>
-          <h3>Dependency injection frameworks</h3>
-          <p>
+          <h2>But why do I need to know this?</h2>
+          <p class="fragment">You probably don't! Unless you plan on writing Haskell.</p>
+          <p class="fragment">. . . but understanding monads will give you a better grasp on some Scala fundamentals.</p>
         </section>
 
-        <section id="themes">
-          <h2>Themes</h2>
-          <p>
-            reveal.js comes with a few themes built in: <br>
-            <!-- Hacks to swap themes after the page has loaded. Not flexible and only intended for the reveal.js demo deck. -->
-            <a href="#" onclick="document.getElementById('theme').setAttribute('href','css/theme/black.css'); return false;">Black (default)</a> -
-            <a href="#" onclick="document.getElementById('theme').setAttribute('href','css/theme/white.css'); return false;">White</a> -
-            <a href="#" onclick="document.getElementById('theme').setAttribute('href','css/theme/league.css'); return false;">League</a> -
-            <a href="#" onclick="document.getElementById('theme').setAttribute('href','css/theme/sky.css'); return false;">Sky</a> -
-            <a href="#" onclick="document.getElementById('theme').setAttribute('href','css/theme/beige.css'); return false;">Beige</a> -
-            <a href="#" onclick="document.getElementById('theme').setAttribute('href','css/theme/simple.css'); return false;">Simple</a> <br>
-            <a href="#" onclick="document.getElementById('theme').setAttribute('href','css/theme/serif.css'); return false;">Serif</a> -
-            <a href="#" onclick="document.getElementById('theme').setAttribute('href','css/theme/blood.css'); return false;">Blood</a> -
-            <a href="#" onclick="document.getElementById('theme').setAttribute('href','css/theme/night.css'); return false;">Night</a> -
-            <a href="#" onclick="document.getElementById('theme').setAttribute('href','css/theme/moon.css'); return false;">Moon</a> -
-            <a href="#" onclick="document.getElementById('theme').setAttribute('href','css/theme/solarized.css'); return false;">Solarized</a>
-          </p>
+        <section>
+          <section>
+            <h2>And now, a short refresher on functions.</h2>
+            <p>Do you know the difference between <code>Function</code> and <code>PartialFunction</code>?</p>
+          </section>
+          <section>
+            <h3>Function as parameters</h3>
+            <p>The type signature of a function that takes an argument of type <i>T</i> and
+            returns an argument of type <i>U</i> is <code>T =&gt; U</code>.</p>
+            <p class="fragment">You may also see the type <code>=&gt; U</code>. This is a special tyep of function called "call-by-name".</p>
+            <p class="fragment">Call-by-name parameters are zero-argument functions, but don't require you to pass in a function - the compiler automatically converts any block you pass in to a function.</p>
+          </section>
+          <section>
+            <h3>Function literals</h3>
+<pre><code class="scala">
+// This is of type String => Int.
+val intToString = { i: Int => i.toString }
+
+// Types can be inferred as well, as it would be in a parameter.
+val intToLong: Int => Long = { i => i.toLong }
+
+// You can also bind existing functions with `_`.
+val intToFloat: Int => Float = Int.int2float _
+
+</code></pre>
+          </section>
+          <section>
+            <h3>Partial functions</h3>
+            <p>Partial functions are used occasionaly in APIs - but they are a subclass of
+            <code>Function</code>, so you can use them in any API that wants a function.</p>
+            <p>This is frequently more convenient that specifying a full function.</p>
+          </section>
+          <section>
+            <h3>Partial function literals</h3>
+            <p>These look just like the body of a <code>match</code> statement:</p>
+<pre><code class="scala">
+val toEvennessString: PartialFunction[Int, String] = {
+  case x if x % 2 == 0 => "even"
+  case _ => "odd"
+}
+
+</code></pre>
+            <div class="fragment">
+              <p>There's one important caveat to using partials in place of functions:</p>
+              <p>An API that takes <code>Function</code> will throw an exception if the partial doesn't match the input.</p>
+            </div>
+          </section>
+        </section>
+
+        <section>
+          <section>
+            <h2>Case Study: <code>scala.Option</code></h2>
+            <p>This is the canonical example of a monad, and replaces the <code class="scala">null</code> of other programming languages.</p>
+            <p class="fragment">. . . although Scala still supports <code class="scala">null</code>.</p>
+          </section>
+          <section>
+            <h3>Chaining operations with <code>Option</code></h3>
+            <p><code>map</code> nicely replaces checks against <code>null</code>:</p>
+<pre><code class="scala">
+// With null:
+var maybeNull: String = _
+val derived: String = if (maybeNull != null) { 
+  maybeNull + " - not null!"
+} else {
+  null
+}
+
+// With Option:
+var maybeNone: Option[String] = _
+val derived: Option[String] = maybeNone map { _ + " - not null!" }
+
+</code></pre>
+            <p class="fragment">Notice how the option-ness is captured in the type! This means you can ditch null-checks in your functions.</p>
+          </section>
+          <section>
+            <h3>Ditching null-checks</h3>
+            <p>You can write functions that operate on only-set values, and <code>map</code> your options onto them.</p>
+<pre><code class="scala">
+// With null:
+var maybeNull: Option[String] = _
+def takesMaybeNull(param: String): String = {
+  if (param == null) { "default" } else { "I got: " + param }
+}
+takesMaybeNull(maybeNull)
+
+// With Option:
+var maybeNone: Option[String] = _
+def takesNonOption(param: String): String = "I got: " + param
+maybeNone map { takesNonOption } getOrElse { "default" }
+
+</code></pre>
+            <p class="fragment">Notice that this moves the None-handling to the caller! This is usually easier to understand - functions are smaller, and edge-cases are handled at a higher level.</p>
+          </section>
+        </section>
+
+        <section>
+          <section>
+            <h2>Other tricks with <code>Option</code></h2>
+            <p>Scala has some useful extensions to their monadic types.</p>
+            <p>For <code>Option</code>, these come from <code>scala.collection.Iterable</code>.</p>
+          </section>
+          <section>
+            <h3><code>zip</code> - combine two values</h3>
+            <p>Zipping <code>Option[T]</code> with <code>Option[U]</code> gives <code>Iterable[(T, U)]</code>, with one or zero values.</p>
+            <p>This lets you execute code (or return a value) if and only if two options are non-None:</p>
+<pre><code class="scala">
+def doStuff(
+  option1: Option[String],
+  option2: Option[String]
+): Option[String] = {
+  val result: Iterable[String] = option1 zip option2 map {
+    case (value1, value2) => value1 + " && " + value2
+  }
+  // Convert back to Option.
+  result.headOption
+}
+
+</code></pre>
+          </section>
+          <section>
+            <h3><code>Option</code> is an <code>Iterable</code> (1/3)</h3>
+            <p>This is a lie - <code>Option</code> instead has an implicit conversion - but it does implement all of the <i>methods</i> in <code>Iterable</code>.</p>
+            <p>This means you can append an <code>Option</code> to another <code>Iterable</code>:</p>
+<pre><code class="scala">
+val mySeq = Seq.empty[String]
+var optionalValue: Option[String] = _
+
+// Here, we're appending all values in the Iterable `optionalValue`.
+// This has zero entries if it's None, one entry if it's Some.
+val newSeq = mySeq ++ optionalValue
+
+</code></pre>
+          </section>
+          <section>
+            <h3><code>Option</code> is an <code>Iterable</code> (2/3)</h3>
+            <p>You can also flatten iterables of options:</p>
+<pre><code class="scala">
+val seqOfOptions: Seq[Option[String]] =
+  Seq(Some("one"), None, None, Some("four"), None)
+
+val flatSeq: Seq[String] = seqOfOptions.flatten
+// `flatSeq` is Seq("one", "four").
+
+</code></pre>
+          </section>
+          <section>
+            <h3><code>Option</code> is an <code>Iterable</code> (3/3)</h3>
+            <p>Finally, you can use <code>flatMap</code> with another iterable to append only non-None values to your list:</p>
+<pre><code class="scala">
+val integers = 1 until 10
+
+val lowPrimesAsString = integers flatMap {
+  case prime @ (2 | 3 | 5 | 7) => Some(prime.toString)
+  case _ => None
+}
+// `lowPrimesAsString` is Seq("2", "3", "5", "7").
+
+</code></pre>
+          </section>
+        </section>
+
+        <section>
+          <section>
+            <h2><code>Case study: scala.concurrent.Future</code></h2>
+            <p><code>Future</code> abstracts away running code in another thread.</p>
+            <p>This is a more classic monad: Using <code>Future[T]</code> means that your mapping functions produce a side-effect (being run in a separate thread).</p>
+          </section>
+          <section>
+            <h3>A note on how <code>Future</code> works</h3>
+            <p>Any time you call a function that creates a new instance of <code>Future</code>, you need to pass in an implicit <code>scala.concurrent.ExecutionContext</code></p>
+            <p>For all practical purposes, this can be thought of as the pool of threads that will run your asynchronous code. See
+              <a href="http://www.scala-lang.org/api/current/index.html#scala.concurrent.ExecutionContext">the ExecutionContext Scaladoc</a> for more info.</p>
+          </section>
+        </section>
+
+        <section>
+          <section>
+            <h2>Checking the result of your <code>Future</code></h2> 
+            <p>Operations that work on <code>Future</code> results fall into two categories: Those that return a new <code>Future</code> (map and recovery functions), and those that return <code>Unit</code> (side-effect functions).</p>
+            <p>We already saw how mapping functions work.</p>
+          </section>
+          <section>
+            <h3>Recovery functions: <code>recover</code> and <code>recoverWith</code> (1/2)</h3>
+            <p>These two functions let you catch exceptions thrown in a <code>Future</code> and return a new value.</p><p>They should be used where you'd normally use a <code class="scala">catch</code> block.</p>
+<pre><code class="scala">
+def randomFuture: Future[String] = Future {
+  val even = System.currentTimeMillis / 1000 % 2 == 0 
+  if (even) { "even" } else { throw new Exception("odd") }
+}
+
+val recovered: Future[String] = randomFuture recover {
+  case e: Exception if e.getMessage == "odd" => {
+    "sorry, we rolled odd"
+  }
+}
+
+</code></pre>
+
+          </section>
+          <section>
+            <h3>Recovery functions: <code>recover</code> and <code>recoverWith</code> (2/2)</h3>
+            <p>The difference between these is similar to the difference between<code>map</code> and <code>flatMap</code></p>
+            <p><code>recover</code> lets you return a value from your partial function, while <code>recoverWith</code> lets you return a <code>Future</code>:</p>
+<pre><code class="scala">
+val recovered: Future[String] = randomFuture recoverWith {
+  case e: Exception if e.getMessage == "odd" => {
+    // Identical except for the below:
+    Future { "sorry, we rolled odd" }
+  }
+}
+
+</code></pre>
+          </section>
+          <section>
+          <h3>Side-effect functions:</h3>
+          <h3><code>onComplete, onFailure, onSuccess</code></h3>
+            <p>These are straightforward: <code>onComplete</code> looks at the full result (success or failure), while <code>onSuccess</code> and <code>onFailure</code> only look at their respective result.</p>
+<pre><code class="scala">
+randomFuture onComplete {
+  case Success(_) => println("even!")
+  case Failure(_) => println("odd!")
+}
+
+randomFuture onSuccess { case _: String => println("even!") }
+randomFuture onFailure { case _: Exception => println("odd!") }
+
+</code></pre>
+          </section>
+        </section>
+
+        <section>
+          <section>
+            <h2><code>Future</code>-minded thinking</h2>
+            <p>As expected, the basic operations on `Future` are `map` and `flatMap`. Note that all
+            example code assumes an implicit ExecutionContext is in scope.</p>
+<pre><code class="scala">
+val futureString: Future[String] = Future {
+  "I'm running in the future! :D"
+}
+
+// Here we have a future with a side-effect, and no return type.
+val futurePrint: Future[Unit] = futureString map { string =>
+  println(s"I got a message from the future: $string")
+}
+
+</code></pre>
+          </section>
+          <section>
+            <h3>Nested <code>Future</code></h3>
+            <p>Once you start going down the <code>Future</code> rabbit hole, you may need to have a <code>Future</code>
+            returning a <code>Future</code>. This is what <code>flatMap</code> is for:</p>
+<pre><code class="scala">
+val futureOne: Future[String] = Future { "roads" }
+
+val futureTwo: Future[String] = futureOne flatMap { result =>
+  Future { "We don't need " + result }
+}
+
+</code></pre>
+          </section>
+          <section>
+            <h3>Handling multiple <code>Futures</code></h3>
+            <p>It's also common to have multiple <code>Futures</code>. This can be from an iteration, or because you have multiple values you want to combine.</p>
+<pre><code class="scala">
+// If you have a sequence of Futures, you can "unwrap" them with
+// Future.sequence.
+val numberFutures: Seq[Future[String]] = 1 to 10 map { number =>
+  Future { number.toString }
+}
+val futureOfNumbers: Future[Seq[String]] = {
+  Future.sequence(numberFutures)
+}
+
+// Two Futures can be zip'd together, just like Option.
+val futureOne: Future[String] = Future { "one" }
+val futureTwo: Future[String] = Future { "two" }
+val futureThree: Future[(String, String)] = futureOne zip futureTwo
+
+</code></pre>
+          </section>
+          <section>
+            <h3>Immediate values</h3>
+            <p>Sometimes, you'll need a <code>Future</code>, but already know the value it will return.</p>
+            <p>Instead of creating a new <code>Future</code> to run in a separate thread, use <code>Future.successful</code> or <code>Future.failure</code> to wrap that value.</p>
+<pre><code class="scala">
+val extraWorkResult: Future[Option[String]] = {
+  if (doExtraWork) {
+    // Run in another thread.
+    Future(Some(extraWork()))
+  } else  {
+    // No need to run in another thread.
+    Future.successful(None)
+  }
+}
+
+</code></pre>
+          </section>
+        </section>
+
+        <section>
+          <section>
+            <h3>Monads in the wild</h3>
+            <p>Once you understand how Scala's monadic type work, you'll start seeing them crop up in other libraries.</p>
+          </section>
+          <section>
+            <h2>Case study: Monadic operations in Slick</h2>
+            <p>We use <a href="http://slick.typesafe.com/">Slick</a> at AI2 for relational database access.</p>
+            <p>Slick uses two monadic types: Query and DBIO.</p>
+          </section>
+          <section>
+            <h2>Short example</h2>
+<pre><code class="scala">
+// Queries represent single SQL statements, and have
+// some iterable-like operations.
+// I've left off the type because it's complicated, but it encodes
+// the table(s) you're selecting from, the result value type(s),
+// and whether this will return rows or a single value.
+val query = myTable filter { _.id === 1 }
+
+// DBIOs represent the result of running a statement, and
+// act like Futures.
+val dbio: DBIO[Int] = query.result map { _.id }
+
+</code></pre>
+          </section>
+        </section>
+        <section>
+          <h3>Conclusion</h3>
+          <p>Monads are complicated, but simple monadic patterns are powerful.<p>
+          <p></p>
         </section>
       </div>
     </div>
