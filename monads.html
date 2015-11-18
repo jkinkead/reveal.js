@@ -38,7 +38,8 @@
       <div class="slides">
         <section>
           <h2>Monads in Scala</h2>
-          <p>What are Monads, and how they're useful in Scala</p>
+          <p>What are Monads, and how they're useful in Scala.</p>
+          <p class="fragment">Spoiler alert: I'm going to mostly gloss over Monad details.</p>
         </section>
 
         <section>
@@ -48,21 +49,29 @@
           </section>
           <section>
             <h3>If you want to read more, <a href="https://en.wikipedia.org/wiki/Monad_(functional_programming)">Wikipedia has you covered.</a></h3>
-            <p>I don't recommend this, as it's far too technical, and all the examples are in Haskell.</p>
+            <p>I don't recommend this, as it's extremely technical, and all the examples are in Haskell.</p>
           </section>
         </section>
 
         <section>
-          <h2>Monads are parameterized types</h2>
-          <p>Because monads are containers, they will be parameterized in the type they contain. In Scala scala terms, they will be a class or trait with a type parameter.</p>
+          <section>
+            <h2>Simply: Monads are parameterized types</h2>
+            <p>Because monads are containers, they will be parameterized in the type they contain.</p>
+            <p>In Scala scala terms, they will be a class or trait with a type parameter.</p>
+          </section>
+          <section>
+            <h3>"Monadic" Scala</h3>
+            <p>I'll be covering monads as a code pattern; what I'm calling "monadic" classes.</p>
+          </section>
         </section>
 
         <section>
           <section>
             <h2>Basic operations</h2>
-            <p>To the best of my understanding, there are two required operations that make up a monad: a constructor ("return") and a map function ("bind").</p>
+            <p>There are two required operations that make up a monad: a constructor ("return") and a map function ("bind").</p>
             <p>For these slides, I'll use the type <code>Mon[T]</code>:</p>
 <pre><code class="scala">
+// TODO: Make me monadic!
 class Mon[T]
 
 object Mon
@@ -80,17 +89,24 @@ object Mon {
 }
 
 val unwrapped: Int = 123
-val wrapped: Mon[Int] = Mon(123)
+// Usually called like: Mon(123)
+val wrapped: Mon[Int] = Mon.apply(123)
 
 </code></pre>
           </section>
           <section>
-            <h3>Map function</h3>
+            <h3>Mapping function</h3>
             <p>Formally, a monadic mapping is a function that takes two arguments - <code>Mon[T]</code>, and a function from <code>T</code> to <code>Mon[U]</code> - and returns <code>Mon[U]</code>.</p>
-            <p> In Scala, we call the formal "bind" <code>flatMap</code>, but usually use the more convenient <code>map</code> construct:</p>
+            <p> In Scala, we call the formal "bind" <code>flatMap</code>, but usually use the more convenient <code>map</code> function.</p>
+          </section>
+          <section>
+            <h3>Example <code>map</code></h3>
 <pre><code class="scala">
 class Mon[T](wrapped: T) {
-  def map[U](operation: (T => U): Mon[U] = {
+  /** Run the given operation, and return the Mon wrapping
+    * the result.
+    */
+  def map[U](operation: T => U): Mon[U] = {
     Mon(operation(wrapped))
   }
 }
@@ -104,6 +120,7 @@ val ten: Mon[Int] = five map { _ * 2 }
             <h3>Example <code>flatMap</code></h3>
 <pre><code class="scala">
 class Mon[T](wrapped: T) {
+  /** Run the given operation, and return resulting Mon. */
   def flatMap[U](operation: (T => Mon[U]): Mon[U] = {
     operation(wrapped)
   }
@@ -117,22 +134,39 @@ val ten: Mon[Int] = five map { value => Mon(value * 2) }
         </section>
 
         <section>
-          <h2>But why do I need to know this?</h2>
-          <p class="fragment">You probably don't! Unless you plan on writing Haskell.</p>
-          <p class="fragment">. . . but understanding monads will give you a better grasp on some Scala fundamentals.</p>
-        </section>
-
-        <section>
           <section>
             <h2>And now, a short refresher on functions.</h2>
-            <p>Do you know the difference between <code>Function</code> and <code>PartialFunction</code>?</p>
+            <p class="fragment">Or, understanding the difference between <code>Function</code> and <code>PartialFunction</code>.</p>
           </section>
           <section>
-            <h3>Function as parameters</h3>
+            <h3>Functions as parameters</h3>
             <p>The type signature of a function that takes an argument of type <i>T</i> and
             returns an argument of type <i>U</i> is <code>T =&gt; U</code>.</p>
-            <p class="fragment">You may also see the type <code>=&gt; U</code>. This is a special tyep of function called "call-by-name".</p>
-            <p class="fragment">Call-by-name parameters are zero-argument functions, but don't require you to pass in a function - the compiler automatically converts any block you pass in to a function.</p>
+<pre><code class="scala">
+// From the earlier slide.
+class Mon[T](wrapped: T) {
+  def map[U](operation: T => U): Mon[U] = {
+    Mon(operation(wrapped))
+  }
+}
+
+</code></pre>
+          </section>
+          <section>
+            <h3>Call-by-name functions</h3>
+            <p>You may also see the type <code>=&gt; U</code>. This is a special type of function called "call-by-name".</p>
+<pre><code class="scala">
+/** Runs the given code in one second. */
+def delayedRun[U](operation: => U): U = {
+  Thread.sleep(1000)
+  operation
+}
+
+def printTime() = println(s"Now = ${System.currentTimeMillis}")
+// The compiler automatically converts the argument to a function.
+delayedRun(printTime())
+
+</code></pre>
           </section>
           <section>
             <h3>Function literals</h3>
@@ -197,11 +231,11 @@ val derived: Option[String] = maybeNone map { _ + " - not null!" }
             <p class="fragment">Notice how the option-ness is captured in the type! This means you can ditch null-checks in your functions.</p>
           </section>
           <section>
-            <h3>Ditching null-checks</h3>
-            <p>You can write functions that operate on only-set values, and <code>map</code> your options onto them.</p>
+            <h3>Removing null-checks</h3>
+            <p>You can write functions that operate on regular values, and <code>map</code> your options onto them.</p>
 <pre><code class="scala">
 // With null:
-var maybeNull: Option[String] = _
+var maybeNull: String = _
 def takesMaybeNull(param: String): String = {
   if (param == null) { "default" } else { "I got: " + param }
 }
@@ -213,7 +247,7 @@ def takesNonOption(param: String): String = "I got: " + param
 maybeNone map { takesNonOption } getOrElse { "default" }
 
 </code></pre>
-            <p class="fragment">Notice that this moves the None-handling to the caller! This is usually easier to understand - functions are smaller, and edge-cases are handled at a higher level.</p>
+            <p class="fragment">Notice that this moves error handling to the caller! This is usually easier to understand - functions are smaller, and edge-cases are handled at a higher level.</p>
           </section>
         </section>
 
@@ -432,7 +466,7 @@ val extraWorkResult: Future[Option[String]] = {
             <p>Slick uses two monadic types: Query and DBIO.</p>
           </section>
           <section>
-            <h2>Short example</h2>
+            <h3>Short example (<code>Query</code>)</h3>
 <pre><code class="scala">
 // Queries represent single SQL statements, and have
 // some iterable-like operations.
@@ -441,17 +475,31 @@ val extraWorkResult: Future[Option[String]] = {
 // and whether this will return rows or a single value.
 val query = myTable filter { _.id === 1 }
 
+// Supports chaining and mapping.
+query filter { _.name === "some name" } map { _.cost }
+
+</code></pre>
+          </section>
+          <section>
+          <h3>Short example (<code>DBIO</code>)</h3>
+<pre><code class="scala">
 // DBIOs represent the result of running a statement, and
 // act like Futures.
 val dbio: DBIO[Int] = query.result map { _.id }
+
+// They support map, flatMap, zip, and DBIO.sequence, all
+// analogous to the Future type.
+val dbio: DBIO[Int] = query.result map { _.id } flatMap { id =>
+  someTable.filter(_.id === id).result
+}
 
 </code></pre>
           </section>
         </section>
         <section>
-          <h3>Conclusion</h3>
-          <p>Monads are complicated, but simple monadic patterns are powerful.<p>
-          <p></p>
+          <h3>Conclusion: Monadic code can be your friend</h3>
+          <p class="fragment">Now go write some Haskell.</p>
+          <p><a href="http://jkinkead.github.io/reveal.js/monads.html">These slides</a></p>
         </section>
       </div>
     </div>
