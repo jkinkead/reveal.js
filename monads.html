@@ -69,7 +69,7 @@
           <section>
             <h2>Basic operations</h2>
             <p>There are two required operations that make up a monad: a constructor ("return") and a map function ("bind").</p>
-            <p>For these slides, I'll use the type <code>Mon[T]</code>:</p>
+            <p>For the next few slides, I'll use the type <code>Mon[T]</code>:</p>
 <pre><code class="scala">
 // TODO: Make me monadic!
 class Mon[T]
@@ -171,7 +171,7 @@ delayedRun(printTime())
           <section>
             <h3>Function literals</h3>
 <pre><code class="scala">
-// This is of type String => Int.
+// This is of type Int => String.
 val intToString = { i: Int => i.toString }
 
 // Types can be inferred as well, as it would be in a parameter.
@@ -184,14 +184,14 @@ val intToFloat: Int => Float = Int.int2float _
           </section>
           <section>
             <h3>Partial functions</h3>
-            <p>Partial functions are used occasionaly in APIs - but they are a subclass of
-            <code>Function</code>, so you can use them in any API that wants a function.</p>
-            <p>This is frequently more convenient that specifying a full function.</p>
+            <p>Partial functions are used occasionaly in APIs</p>
+            <p>They are also a subclass of <code>Function</code>, so you can
+            use them in any API that wants a regular function.</p>
           </section>
           <section>
             <h3>Partial function literals</h3>
-            <p>These look just like the body of a <code>match</code> statement:</p>
 <pre><code class="scala">
+// Looks just like the body of a match statement:
 val toEvennessString: PartialFunction[Int, String] = {
   case x if x % 2 == 0 => "even"
   case _ => "odd"
@@ -199,7 +199,7 @@ val toEvennessString: PartialFunction[Int, String] = {
 
 </code></pre>
             <div class="fragment">
-              <p>There's one important caveat to using partials in place of functions:</p>
+              <p>Important caveat:</p>
               <p>An API that takes <code>Function</code> will throw an exception if the partial doesn't match the input.</p>
             </div>
           </section>
@@ -207,7 +207,7 @@ val toEvennessString: PartialFunction[Int, String] = {
 
         <section>
           <section>
-            <h2>Case Study: <code>scala.Option</code></h2>
+            <h2>Case study: <code>scala.Option</code></h2>
             <p>This is the canonical example of a monad, and replaces the <code class="scala">null</code> of other programming languages.</p>
             <p class="fragment">. . . although Scala still supports <code class="scala">null</code>.</p>
           </section>
@@ -217,7 +217,7 @@ val toEvennessString: PartialFunction[Int, String] = {
 <pre><code class="scala">
 // With null:
 var maybeNull: String = _
-val derived: String = if (maybeNull != null) { 
+val derived: String = if (maybeNull != null) {
   maybeNull + " - not null!"
 } else {
   null
@@ -231,7 +231,7 @@ val derived: Option[String] = maybeNone map { _ + " - not null!" }
             <p class="fragment">Notice how the option-ness is captured in the type! This means you can ditch null-checks in your functions.</p>
           </section>
           <section>
-            <h3>Removing null-checks</h3>
+          <h3>Thinking <code>Option</code>ally (1/2)</h3>
             <p>You can write functions that operate on regular values, and <code>map</code> your options onto them.</p>
 <pre><code class="scala">
 // With null:
@@ -247,7 +247,11 @@ def takesNonOption(param: String): String = "I got: " + param
 maybeNone map { takesNonOption } getOrElse { "default" }
 
 </code></pre>
-            <p class="fragment">Notice that this moves error handling to the caller! This is usually easier to understand - functions are smaller, and edge-cases are handled at a higher level.</p>
+          </section>
+          <section>
+            <h3>Thinking <code>Option</code>ally (2/2)</h3>
+            <p>Notice how that moved error handling to the caller!</p>
+            <p>This is usually easier to understand - functions are smaller, and edge-cases are handled closer to where the data was generated.</p>
           </section>
         </section>
 
@@ -296,8 +300,8 @@ val newSeq = mySeq ++ optionalValue
 val seqOfOptions: Seq[Option[String]] =
   Seq(Some("one"), None, None, Some("four"), None)
 
-val flatSeq: Seq[String] = seqOfOptions.flatten
 // `flatSeq` is Seq("one", "four").
+val flatSeq: Seq[String] = seqOfOptions.flatten
 
 </code></pre>
           </section>
@@ -307,11 +311,11 @@ val flatSeq: Seq[String] = seqOfOptions.flatten
 <pre><code class="scala">
 val integers = 1 until 10
 
+// `lowPrimesAsString` is Seq("2", "3", "5", "7").
 val lowPrimesAsString = integers flatMap {
   case prime @ (2 | 3 | 5 | 7) => Some(prime.toString)
   case _ => None
 }
-// `lowPrimesAsString` is Seq("2", "3", "5", "7").
 
 </code></pre>
           </section>
@@ -319,9 +323,9 @@ val lowPrimesAsString = integers flatMap {
 
         <section>
           <section>
-            <h2><code>Case study: scala.concurrent.Future</code></h2>
+            <h2>Case study: <code>scala.concurrent.Future</code></h2>
             <p><code>Future</code> abstracts away running code in another thread.</p>
-            <p>This is a more classic monad: Using <code>Future[T]</code> means that your mapping functions produce a side-effect (being run in a separate thread).</p>
+            <aside class="notes">This is a more classic monad: Using <code>Future[T]</code> means that your mapping functions produce a side-effect (being run in a separate thread).</aside>
           </section>
           <section>
             <h3>A note on how <code>Future</code> works</h3>
@@ -333,65 +337,11 @@ val lowPrimesAsString = integers flatMap {
 
         <section>
           <section>
-            <h2>Checking the result of your <code>Future</code></h2> 
-            <p>Operations that work on <code>Future</code> results fall into two categories: Those that return a new <code>Future</code> (map and recovery functions), and those that return <code>Unit</code> (side-effect functions).</p>
-            <p>We already saw how mapping functions work.</p>
-          </section>
-          <section>
-            <h3>Recovery functions: <code>recover</code> and <code>recoverWith</code> (1/2)</h3>
-            <p>These two functions let you catch exceptions thrown in a <code>Future</code> and return a new value.</p><p>They should be used where you'd normally use a <code class="scala">catch</code> block.</p>
-<pre><code class="scala">
-def randomFuture: Future[String] = Future {
-  val even = System.currentTimeMillis / 1000 % 2 == 0 
-  if (even) { "even" } else { throw new Exception("odd") }
-}
-
-val recovered: Future[String] = randomFuture recover {
-  case e: Exception if e.getMessage == "odd" => {
-    "sorry, we rolled odd"
-  }
-}
-
-</code></pre>
-
-          </section>
-          <section>
-            <h3>Recovery functions: <code>recover</code> and <code>recoverWith</code> (2/2)</h3>
-            <p>The difference between these is similar to the difference between<code>map</code> and <code>flatMap</code></p>
-            <p><code>recover</code> lets you return a value from your partial function, while <code>recoverWith</code> lets you return a <code>Future</code>:</p>
-<pre><code class="scala">
-val recovered: Future[String] = randomFuture recoverWith {
-  case e: Exception if e.getMessage == "odd" => {
-    // Identical except for the below:
-    Future { "sorry, we rolled odd" }
-  }
-}
-
-</code></pre>
-          </section>
-          <section>
-          <h3>Side-effect functions:</h3>
-          <h3><code>onComplete, onFailure, onSuccess</code></h3>
-            <p>These are straightforward: <code>onComplete</code> looks at the full result (success or failure), while <code>onSuccess</code> and <code>onFailure</code> only look at their respective result.</p>
-<pre><code class="scala">
-randomFuture onComplete {
-  case Success(_) => println("even!")
-  case Failure(_) => println("odd!")
-}
-
-randomFuture onSuccess { case _: String => println("even!") }
-randomFuture onFailure { case _: Exception => println("odd!") }
-
-</code></pre>
-          </section>
-        </section>
-
-        <section>
-          <section>
             <h2><code>Future</code>-minded thinking</h2>
-            <p>As expected, the basic operations on `Future` are `map` and `flatMap`. Note that all
+            <p>As expected, the basic operations on <code>Future</code> are <code>map</code> and <code>flatMap</code>. Note that all
             example code assumes an implicit ExecutionContext is in scope.</p>
 <pre><code class="scala">
+// A future that returns a string.
 val futureString: Future[String] = Future {
   "I'm running in the future! :D"
 }
@@ -411,14 +361,13 @@ val futurePrint: Future[Unit] = futureString map { string =>
 val futureOne: Future[String] = Future { "roads" }
 
 val futureTwo: Future[String] = futureOne flatMap { result =>
-  Future { "We don't need " + result }
+  Future { "Where we're going, we don't need " + result }
 }
 
 </code></pre>
           </section>
           <section>
             <h3>Handling multiple <code>Futures</code></h3>
-            <p>It's also common to have multiple <code>Futures</code>. This can be from an iteration, or because you have multiple values you want to combine.</p>
 <pre><code class="scala">
 // If you have a sequence of Futures, you can "unwrap" them with
 // Future.sequence.
@@ -429,7 +378,7 @@ val futureOfNumbers: Future[Seq[String]] = {
   Future.sequence(numberFutures)
 }
 
-// Two Futures can be zip'd together, just like Option.
+// Two Futures can be zipped together, just like with Option.
 val futureOne: Future[String] = Future { "one" }
 val futureTwo: Future[String] = Future { "two" }
 val futureThree: Future[(String, String)] = futureOne zip futureTwo
@@ -439,7 +388,6 @@ val futureThree: Future[(String, String)] = futureOne zip futureTwo
           <section>
             <h3>Immediate values</h3>
             <p>Sometimes, you'll need a <code>Future</code>, but already know the value it will return.</p>
-            <p>Instead of creating a new <code>Future</code> to run in a separate thread, use <code>Future.successful</code> or <code>Future.failure</code> to wrap that value.</p>
 <pre><code class="scala">
 val extraWorkResult: Future[Option[String]] = {
   if (doExtraWork) {
@@ -450,6 +398,62 @@ val extraWorkResult: Future[Option[String]] = {
     Future.successful(None)
   }
 }
+
+</code></pre>
+          </section>
+        </section>
+
+        <section>
+          <section>
+            <h2>Checking the result of your <code>Future</code></h2>
+            <p>Operations that work on <code>Future</code> results fall into two categories: Those that return a new <code>Future</code> (map and recovery functions), and those that return <code>Unit</code> (side-effect functions).</p>
+            <p>We already saw how mapping functions work.</p>
+          </section>
+          <section>
+            <h3>Recovery functions: <code>recover</code> and <code>recoverWith</code> (1/2)</h3>
+            <p>These two functions let you catch exceptions, and are used where you'd normally use a <code class="scala">catch</code> block.</p>
+<pre><code class="scala">
+// Throws an exception half of the time.
+def randomFuture: Future[String] = Future {
+  val even = System.currentTimeMillis / 1000 % 2 == 0
+  if (even) { "even" } else { throw new Exception("odd") }
+}
+
+// Recover from randomly thrown exceptions.
+val recovered: Future[String] = randomFuture recover {
+  case e: Exception if e.getMessage == "odd" => {
+    "sorry, we rolled odd"
+  }
+}
+
+</code></pre>
+
+          </section>
+          <section>
+            <h3>Recovery functions: <code>recover</code> and <code>recoverWith</code> (2/2)</h3>
+            <p>The difference between these is similar to the difference between <code>map</code> and <code>flatMap</code>.</p>
+<pre><code class="scala">
+// recoverWith expects you to return a Future instead of a regular value.
+val recovered: Future[String] = randomFuture recoverWith {
+  case e: Exception if e.getMessage == "odd" => {
+    // Identical except for the below:
+    Future { "sorry, we rolled odd" }
+  }
+}
+
+</code></pre>
+          </section>
+          <section>
+          <h3>Side-effect functions: <code>onComplete</code>, <code>onFailure</code>, <code>onSuccess</code></h3>
+            <p>These are straightforward: <code>onComplete</code> looks at the full result (success or failure), while <code>onSuccess</code> and <code>onFailure</code> only look at their respective result.</p>
+<pre><code class="scala">
+randomFuture onComplete {
+  case Success(_) => println("even!")
+  case Failure(_) => println("odd!")
+}
+
+randomFuture onSuccess { case _: String => println("even!") }
+randomFuture onFailure { case _: Exception => println("odd!") }
 
 </code></pre>
           </section>
@@ -498,8 +502,10 @@ val dbio: DBIO[Int] = query.result map { _.id } flatMap { id =>
         </section>
         <section>
           <h3>Conclusion: Monadic code can be your friend</h3>
-          <p class="fragment">Now go write some Haskell.</p>
-          <p><a href="http://jkinkead.github.io/reveal.js/monads.html">These slides</a></p>
+          <div class="fragment">
+            <p>Now go write some Haskell.</p>
+            <p><a href="http://jkinkead.github.io/reveal.js/monads.html">Link to these slides</a></p>
+          </div>
         </section>
       </div>
     </div>
