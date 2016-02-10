@@ -1,0 +1,634 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+
+    <title>Guice and Dependency Injection in Scala</title>
+
+    <meta name="description" content="">
+    <meta name="author" content="Jesse Kinkead">
+
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
+
+    <link rel="stylesheet" href="css/reveal.css">
+    <link rel="stylesheet" href="css/theme/simple_white.css" id="theme">
+
+    <!-- Code syntax highlighting -->
+    <link rel="stylesheet" href="lib/css/zenburn.css">
+
+    <!-- Printing and PDF exports -->
+    <script>
+      var link = document.createElement( 'link' );
+      link.rel = 'stylesheet';
+      link.type = 'text/css';
+      link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
+      document.getElementsByTagName( 'head' )[0].appendChild( link );
+    </script>
+
+    <!--[if lt IE 9]>
+    <script src="lib/js/html5shiv.js"></script>
+    <![endif]-->
+  </head>
+
+  <body>
+    <div class="reveal">
+      <div class="slides">
+        <section>
+          <h2>Dependency Injection in Scala with Guice</h2>
+          <p>The pattern and the implementation.</p>
+        </section>
+
+        <section>
+          <section>
+            <h2>What is this "Dependency Injection", anyway?</h2>
+            <p class="fragment">Briefly: A design pattern where a class doesn't build its own dependencies.</p>
+          </section>
+          <section>
+            <h3>So, uh, "dependencies"?</h3>
+            <p>A dependency is any <i>external class</i> or <i>library</i> a class uses.</p>
+            <p class="fragment">Yep, it's that broad of a definition.</p>
+            <aside class="notes">
+            A class has a number of "dependencies" - meaning any other class it uses during its
+            operation. This term is especially used for resources that might be shared with other
+            classes.</aside>
+          </section>
+          <section>
+            <h3>But practically speaking . . .</h3>
+            <p>We really just mean shared libraries and member variables.</p>
+            <aside class="notes">
+            When a class is "injected" all it means is its member variables are passed in through
+            a constructor or setter methods. It also means that external libraries are called
+            through instances of a class, rather than using methods on objects.
+            </aside>
+          </section>
+          <section>
+            <h3>Example</h3>
+            <p>A class that constructs its own dependencies:
+            <pre><code class="scala">
+class MyServiceCaller {
+  private val myService = new RemoteService("somehost.com:8080")
+}
+            </code></pre>
+            </p>
+            <div class="fragment">
+            <p>A class with injected dependencies:</p>
+            <pre><code class="scala">
+class MyServiceCaller (myService: RemoteService)
+            </code></pre>
+            </div>
+            <p class="fragment">Achievement unlocked: Dependencies injected!
+            <img style="border: none;" src="syringe_optional.gif" /></p>
+          </section>
+          <section>
+            <h3>One last aside</h3>
+            <p>You can also inject dependencies by calling setter methods.</p>
+            <p>This is still considered dependency injection, but it's not a widely-used method.</p>
+            <aside class="notes">
+            Some older frameworks use this style, and Guice supports it, but
+            it's not widely-used in practice.
+            </aside>
+          </section>
+        </section>
+
+        <section>
+          <section>
+            <h2>Motivations - Why is this pattern useful?</h2>
+          </section>
+          <section>
+            <h3>Testability</h3>
+            <p>How would you unit test this?</p>
+            <pre><code class="scala">
+class MyServiceCaller {
+  val serviceInstance = MyService.instance
+  def methodToTest = { serviceInstance.remoteCall() }
+}
+            </code></pre>
+            <p class="fragment">If you inject <code>serviceInstance</code>, you can set it to a mock in a unit test.</p>
+          </section>
+          <section>
+            <h3>Controlled initialization</h3>
+            <p>When will <code>instance</code> be initialized?</p>
+            <pre><code class="scala">
+object MyService { val instance = new MyService() }
+            </code></pre>
+            <p class="fragment">Answer: When the class <code>MyService</code> is loaded.</p>
+            <aside class="notes">
+              <p>This is normally the first time it's referenced while your
+              application is running.</p>
+              <p>This is rarely mentioned as a benefit of dependency injection,
+              but it's one of the main reasons I'm a fan.</p>
+            </aside>
+          </section>
+          <section>
+            <h3>Function-like classes</h3>
+            <pre style="margin-bottom: 0; box-shadow: none;"><code class="scala">
+// What are my dependencies?
+class MyClass {
+</code></pre>
+<div class="fragment">
+<pre style="margin-top: 0; box-shadow: none;"><code class="scala">  // Many lines of code later? Embedded deep in function calls?
+  val serviceInstance = MyService.instance
+  val anotherInstance = AnotherService.instance
+}
+</code></pre></div>
+            <div class="fragment">
+            <pre><code class="scala">
+// What are my dependencies?
+class MyServiceCaller(
+  serviceInstance: MyService,
+  anotherInstance: AnotherService
+) {
+</code></pre>
+            <div class="fragment">
+            <p>This is an awesome side-effect of using the dependency injection pattern, but isn't often called out.</p>
+            <p>The whole class is now like a function!</p>
+            </div>
+            
+            <aside class="notes">
+            <p>It's awesome that a class will
+            have all of its inputs and outputs clearly declared. With typical
+            usage, these will all be constructor parameters, making the whole
+            class act like a pure function.</p>
+            <p>This has all the benefits of pure functions - classes are much easier to move around
+            and refactor, and analysis of execution side-effects becomes a lot more
+            straightforward.</p>
+            </aside>
+          </section>
+          <section>
+            <h3>More reading</h3>
+            <p><a href="https://github.com/google/guice/wiki/Motivation">Google's Guice Motivation page</a> goes into much more detail with a lot of examples.</p>
+          </section>
+        </section>
+
+        <section>
+          <section>
+            <h2>Guice: A dependency injection framework</h2>
+            <p>Making injection simpler.</p>
+          </section>
+          <section>
+            <h3>Why would I want a framework?</h3>
+            <p>If you have singleton instances, you end up passing them around a lot:</p>
+            <pre><code class="scala">
+class MyServiceCaller(service: MyService) {
+  val anotherCaller = new AnotherCaller(service)
+}
+
+class AnotherCaller(service: MyService) {
+  val yetAnotherCaller = new YetAnotherCaller(service)
+}
+            </code></pre>
+            <p>This happens most frequently with expensive-to-create libraries, like parsers; or with shared resources, like connection pools.</p>
+            <aside class="notes">For simple cases, this is fine; but for complicated object trees, you end up with a massive amount of initialization code at the root of your tree.</aside>
+          </section>
+        </section>
+        <section>
+          <section>
+            <h2>Guice basics: Object instantiation</h2>
+          </section>
+          <section>
+            <h3>The Guice <code>Injector</code></h3>
+            <p>Guice's main entry point is <code>com.google.inject.Injector</code>:
+            <pre><code class="scala">
+val injector = Guice.createInjector
+
+val myService = injector.instance[MyService]
+            </code></pre>
+            <p>It's job is to build objects for you. That's it!</p>
+            <p class="fragment">Note that all my example code uses the spiffy <a href="https://github.com/codingwell/scala-guice">scala-guice</a> library for Scala-style accessors.</p>
+          </section>
+          <section>
+            <h3>Object creation workflow</h3>
+            <ul>
+              <li>Find a constructor</li>
+              <li>Create arguments</li>
+              <li>Create the instance requested</li>
+            </ul>
+          </section>
+          <section>
+            <h3>Locating a constructor</h3>
+            <p>When you ask for an instance class, Guice will try to find a constructor annotated with <code>com.google.inject.Inject</code></p>
+            <p class="fragment">If one doesn't exist, it will look for a zero-argument constructor.</p>
+            <p class="fragment">If this doesn't exist, it will throw an exception.</p>
+            <p class="fragment">. . . but where is my (Scala) constructor?</p>
+          </section>
+          <section>
+            <h3>Where to annotate a Scala constructor</h3>
+            <p>Annotations must be on the constructor definition.</p>
+            <div class="fragment">
+            <pre><code class="scala">
+class MyServiceCaller @Inject() (service: MyService)
+// Your primary constructor ----^
+            </code></pre>
+            </div>
+            <div class="fragment">
+            <p>Note that the parens are required on the annotation to disambiguate annotation arguments from the constructor arguments.</p>
+            </div>
+            <div class="fragment">
+            <p>It's simpler for a secondary constructor:</p>
+            <pre><code class="scala">
+class MyServiceCaller (service: MyService, usuallyOne: Int) {
+  // A secondary constructor.
+  @Inject def this(service: MyService) = this(service, 1)
+}
+            </code></pre>
+            </div>
+          </section>
+          <section>
+            <h3>Finding arguments</h3>
+            <p>Guice uses what's called a <i>binding key</i> to locate instances.</p>
+            <div class="fragment">
+            <p>This is normally just the requested class, but it can also include annotations.</p>
+            <p>I'm going to cover more on this later, but for now we'll just say it creates a new instance of the argument's class.</p>
+            </div>
+          </section>
+          <section>
+            <h3>Finally . . .</h3>
+            <p class="fragment">The constructor method is called. Exciting!</p>
+          </section>
+        </section>
+        <section>
+          <section>
+            <h2>Where simple creation falls apart</h2>
+            <p>Have you noticed the flaws in this algorithm yet?</p>
+          </section>
+          <section>
+            <h3>Injecting abstract classes</h3>
+            <p>If I have an abstract class or a trait, I can't create an instance of it:</p>
+            <pre><code class="scala">
+trait MyServiceTrait { def doStuff: Unit }
+
+class MyServiceImpl extends MyServiceTrait { ... }
+
+// I want a MyServiceImpl, but I don't want to declare it as one
+// here . . .
+class MyServiceCaller @Inject() (service: MyServiceTrait)
+            </code></pre>
+          </section>
+          <section>
+            <h3>Injecting common types</h3>
+            <p>Using a no-argument or annotated constructor isn't an option for common library types:</p>
+            <pre><code class="scala">
+// How do I get the URL I want???
+class HttpCaller @Inject() (serviceUrl: String)
+            </code></pre>
+          </section>
+          <section>
+            <h3>Injecting based on a configuration setting</h3>
+            <p>Sometimes code needs to run differently based on a configuration value, commandline flag, or other dynamic input:</p>
+            <pre><code class="scala">
+// Debugger should be None if useDebug is false . . .
+class DebuggableClass @Inject() (debugger: Option[Debugger])
+            </code></pre>
+          </section>
+        </section>
+        <section>
+          <section>
+            <h2>The glue behind Guice: <i>Modules</i> and <i>Bindings</i></h2>
+          </section>
+          <section>
+            <h3>What is a Module?</h3>
+            <p>A module is some code that creates a link from a <i>binding key</i> to a factory method.</p>
+            <p class="fragment">For the examples we've talked about so far, the binding key has been the instance's type, and the factory method has been its annotated constructor.</p>
+          </section>
+          <section>
+            <h3>Basic module outline</h3>
+            <p>The core of a Module is very simple:</p>
+            <pre><code class="scala">
+import net.codingwell.scalaguice.ScalaModule
+
+// Note the special ScalaModule. This makes Guice's binding
+// DSL a lot cleaner in Scala!
+class MyModule extends ScalaModule {
+  override def configure(): Unit = {
+    // Here is where you put your bindings.
+  }
+}
+            </code></pre>
+          </section>
+          <section>
+            <h3>Using a module</h3>
+            <p>Modules are "installed" by passing them as arguments to <code>Guice.createInjector</code>:</p>
+            <pre><code class="scala">
+val injector = Guice.createInjector(new MyModule, new AnotherModule)
+            </code></pre>
+          </section>
+          <section>
+            <h3>Binding an implementation</h3>
+            <pre><code class="scala">
+trait MyServiceTrait { def doStuff: Unit }
+
+class MyServiceImpl extends MyServiceTrait { ... }
+
+class MyServiceCaller @Inject() (service: MyServiceTrait)
+
+class MyModule extends ScalaModule {
+  override def configure(): Unit = {
+    // If an instance of MyServiceTrait is needed, create an
+    // instance of MyServiceImpl!
+    bind[MyServiceTrait].to[MyServiceImpl]
+  }
+}
+</code></pre>
+          </section>
+          <section>
+            <h3>Using binding <code>@Named</code> values</h3>
+            <pre><code class="scala">
+// Add an annotation here:
+class HttpCaller @Inject() (@Named("serviceUrl") serviceUrl: String)
+
+// And bind it in configure():
+class MyModule extends ScalaModule {
+  override def configure(): Unit = {
+    val url = "http://service.dev.ai2:8080"
+    // Use toInstance if you have a single value to bind to.
+    bind[String].annotatedWithName("serviceUrl").toInstance(url)
+  }
+}
+
+            </code></pre>
+          </section>
+          <section>
+            <h3>Injecting based on dynamic data</h3>
+            <p>This can be done with a <i>provider method</i>:</p>
+            <pre><code class="scala">
+// Debugger will be None if useDebug is false.
+class DebuggableClass @Inject() (debugger: Option[Debugger])
+
+class MyModule extends ScalaModule {
+  override def configure(): Unit = {}
+
+  // All parameters to this method will be injected - just as if
+  // it were a constructor.
+  @Provides def provideDebugger(
+    @Named("useDebug") useDebug: Boolean
+  ): Option[Debugger] = {
+    if (useDebug) Some(new Debugger) else None
+  }
+}
+            </code></pre>
+          </section>
+        </section>
+        <section>
+          <section>
+            <h2>More Guicey tricks</h2>
+          </section>
+          <section>
+            <h3>Singleton instances (1/2)</h3>
+            <p>Normally, an Injector will always provide you with a new instance whenever you request one:</p>
+            <pre><code class="scala">
+// If you don't do anything special, both consumer classes will get
+// new instances of MyService.
+class ConsumerOne @Inject() (service: MyService)
+class ConsumerTwo @Inject() (service: MyService)
+            </code></pre>
+          </section>
+          <section>
+            <h3>Singleton instances (2/2)</h3>
+            <p>You can fix this in one of two ways.</p>
+            <div class="fragment">
+              <p>With an annotation:</P>
+            <pre><code class="scala">
+// Classes annotated with @Singleton will only be created once.
+@Singleton class MyService ...
+            </code></pre>
+            </div>
+            <div class="fragment">
+            <p>Or with a binding:</P>
+            <pre><code class="scala">
+// Bindings marked in the singleton scope will also only be created
+// once.
+bind[MyService].in[Singleton]
+
+// Bindings to instances are also singletons.
+bind[MyService].toInstance(new MyService)
+            </code></pre>
+            </div>
+          </section>
+          <section>
+            <h3>Creating instances on-the-fly</h3>
+            <p>Sometimes, you need a new instance of a class each time, but you still want that class injected.</p>
+            <div class="fragment">
+              <p>You can use the <code>Provider</code> interface for this:</p>
+            <pre><code class="scala">
+class SomeClass @Inject() (fooProvider: Provider[Foo]) {
+  def doStuff: Unit = {
+    // I need a new Foo each time!
+    val newFoo = fooProvider.get
+  }
+}
+            </code></pre>
+            </div>
+            <p class="fragment"><b>Important note</b>: Don't confuse these with <i>provider methods</i>, which do a totally different thing! <code>Provider</code> is not <code>@Provides</code>.</p>
+          </section>
+          <section>
+            <h3>Implicit constructor parameters</h3>
+            <p>Do you know where implicit parameters go in the compiled bytecode?</p>
+            <div class="fragment">
+              <p>As additional parameters to the function!</p>
+              <p>This is convenient because it means that it Just Works without any special intervention.</p>
+            </div>
+            <p class="fragment">. . . provided you have a binding for the implicit parameter.</p>
+          </section>
+        </section>
+        <section>
+          <section>
+            <h2>Writing a Guice module for a library</h2>
+            <p class="fragment">Or, how to lose friends and alienate people</p>
+          </section>
+          <section>
+            <h3>Dos and Don'ts</h3>
+            <p class="fragment"><i>Don't</i> require Guice to use your library. This means documenting how to create your classes without using Guice.</p>
+            <p class="fragment"><i>Do</i> clearly document your unbound dependencies.</p>
+            <p class="fragment"><i>Do</i> provide a single, easy-to-create module that binds all of your library classes.</p>
+          </section>
+          <section>
+            <h3>Using <code>requireBinding</code></h3>
+            <p>If your module needs a Guice binding, but expects this to be installed by the user of your module, there is a special method you can call to register this:</p>
+            <pre><code class="scala">
+class MyModule extends ScalaModule {
+  override def configure(): Unit = {
+    // ScalaModule doesn't have an overload of this, so we have to 
+    // use the Java API.
+    requireBinding(classOf[ExternalService])
+  }
+}
+            </code></pre>
+            <p class="fragment">This will throw an exception when the injector is created if the key isn't bound.</p>
+          </section>
+          <section>
+            <h3>Using <code>addError</code></h3>
+            <p>If you encounter an invalid state in your module, use <code>addError</code> to report problems instead of throwing an exception:</p>
+            <pre><code class="scala">
+class MyModule(parameter: Int) extends ScalaModule {
+  override def configure(): Unit = {
+    if (parameter &lt; 0) {
+      addError("\"parameter\" must be positive")
+    } else {
+      ...
+    }
+  }
+}
+            </code></pre>
+            <p class="fragment">This will collect all errors and collate them, and will produce a (slightly) cleaner stack trace.</p>
+          </section>
+        </section>
+        <section>
+          <section>
+            <h2>. . . but what about the less-good stuff?</h2>
+          </section>
+          <section>
+            <h3>Stack traces</h3>
+            <p>Guice produces long stack traces along with its error messages:</p>
+            <pre>
+1) No implementation for org.allenai.MyService was bound.
+  while locating org.allenai.MyService
+    for parameter 1 at org.allenai.MyServiceCaller.<init>(MyServiceCaller.scala:15)
+  while locating org.allenai.MyService
+
+1 error
+ at com.google.inject.internal.InjectorImpl.getProvider(InjectorImpl.java:1042)
+ at com.google.inject.internal.InjectorImpl.getInstance(InjectorImpl.java:1047)
+ at net.codingwell.scalaguice.InjectorExtensions$ScalaInjector.instance(InjectorExtensions.scala:25)
+ ...
+            </pre>
+            <p class="fragment">. . . but you're a grown-up and can learn to read these.</p>
+          </section>
+          <section>
+            <h3>Runtime errors</h3>
+            <p>Guice produces errors at runtime instead of at compile time.</p>
+            <p>This is especially bad when using <code>Provider</code>s, passing around <code>Injector</code> instances, or using <code>RequestScoped</code>.</p>
+            <p class="fragment"><b>Solution</b>: Don't pass around injectors; use providers very sparingly; never use <code>RequestScoped</code></p>
+          </section>
+          <section>
+            <h3>Global namespace for <code>@Named</code></h3>
+            <p>The binding key namespace is global.</p>
+            <p>This means that you can't bind two classes of the same type to the same name.</p>
+            <div class="fragment">
+            <p>This is really only an issue when binding common config parameters:</p>
+            <pre><code class="scala">
+// Surely no other class needs an integer port!
+class HttpCaller @Inject() (@Named("port") port: Int)
+            </code></pre>
+            </div>
+            <p class="fragment"><b>Solution</b>: Use longer names, or a custom annotation.</p>
+            <p class="fragment">. . . unfortunately custom annotations require writing Java code.</p>
+          </section>
+        </section>
+        <section>
+          <section>
+            <h2>AI2-specific helper modules</h2>
+            <p>Found in <a href="https://github.com/allenai/common/tree/master/guice">common-guice</a>.</p>
+          </section>
+          <section>
+            <h3><a href="https://github.com/allenai/common/blob/master/guice/src/main/scala/org/allenai/common/guice/ActorSystemModule.scala">ActorSystemModule</a></h3>
+            <p>This will bind an <code>ActorSystem</code> and its <code>ExecutionContext</code>, both as singletons.</p>
+            <p class="fragment">You can also provide a binding name, if you need multiple instances of either.</p>
+          </section>
+          <section>
+            <h3><a href="https://github.com/allenai/common/blob/master/guice/src/main/scala/org/allenai/common/guice/ConfigModule.scala">ConfigModule</a></h3>
+            <p>This provides <code>@Named</code> bindings for values pulled from a Typesafe config file.</p>
+            <pre><code class="scala">
+class ConsumerClass(@Named("myService.port") port: Int)
+            </code></pre>
+          </section>
+          <section>
+            <h3>More features</h3>
+            <p>You can pick a prefix for your config names. This helps with name uniqueness.</p>
+            <p class="fragment">You can specify a location for a default configuration file to use. This is great for writing library modules that work out-of-the-box.</p>
+            <p class="fragment">The documentation has all this and more.</p>
+          </section>
+        </section>
+        <section>
+          <h2>Conclusion: Guice is a decent solution for dependency injection.</h2>
+          <p>Don't listen to the haters: Guice can be useful - but be aware of the pitfalls!</p>
+        </section>
+        <section>
+          <section>
+            <h2>Appendix: The cake pattern</h2>
+            <p class="fragment">Or, how to lose friends and alienate people - in pure Scala!</p>
+          </section>
+          <section>
+            <h3>Mixins, briefly</h3>
+            <p>Traits can have a "self-type", which indicates a constraint on the classes that can extend them:</p>
+            <pre><code class="scala">
+// Trait indicating that the member value "service" exists.
+trait HasService { val service: MyService }
+
+trait MyServiceCaller { self: HasService =>
+  def doStuff(): Unit = {
+    // Can access `service` member here.
+    service.doStuff()
+  }
+}
+            </code></pre>
+            <p class="fragment">Note that now our self-types function similarly to constructor paramters. They also declare our dependencies.</p>
+          </section>
+          <section>
+            <h3>Example</h3>
+            <pre><code class="scala">
+trait HasService { val service: MyService }
+
+trait ProductionService extends HasService {
+  override val service = new MyService(...)
+}
+
+// Could be local to a unit test.
+trait MockService extends HasService {
+  override val service = ...
+}
+
+class ProductionCaller extends MyServiceCaller
+    with ProductionService
+            </code></pre>
+          </section>
+          <section>
+            <h3>Pros</h3>
+            <p>Pure-Scala dependency injection!</p>
+            <p class="fragment">. . . and that's about it.</p>
+          </section>
+          <section>
+            <h3>Cons</h3>
+            <p>Requires a lot of boilerplate to be clear.</p>
+            <p class="fragment">If you cut corners on boilerplate, or have a large project, initialization code is extremely hard-to-follow.</p>
+            <p class="fragment">Very unforgiving to Scala novices.</p>
+            <p class="fragment">Horrible abuse of the type system.</p>
+            <aside class="notes">With the cake pattern, you end up with classes that inherit from "real" parents (that share implementations or logical types), mixed with cakey parents. It makes it extremely difficult to reason about respnsibilities in a project where the types mean two different things.</aside>
+          </section>
+          <section>
+            <h3>Conclusion</h3>
+            <p>Don't use the cake pattern.</p>
+          </section>
+        </section>
+      </div>
+    </div>
+
+    <script src="lib/js/head.min.js"></script>
+    <script src="js/reveal.js"></script>
+
+    <script>
+      // Full list of configuration options available at:
+      // https://github.com/hakimel/reveal.js#configuration
+      Reveal.initialize({
+        controls: true,
+        progress: true,
+        history: true,
+        center: true,
+
+        transition: 'slide', // none/fade/slide/convex/concave/zoom
+
+        // Optional reveal.js plugins
+        dependencies: [
+          { src: 'lib/js/classList.js', condition: function() { return !document.body.classList; } },
+          { src: 'plugin/markdown/marked.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+          { src: 'plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+          { src: 'plugin/highlight/highlight.js', async: true, condition: function() { return !!document.querySelector( 'pre code' ); }, callback: function() { hljs.initHighlightingOnLoad(); } },
+          { src: 'plugin/zoom-js/zoom.js', async: true },
+          { src: 'plugin/notes/notes.js', async: true }
+        ]
+      });
+    </script>
+  </body>
+</html>
