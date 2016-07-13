@@ -348,10 +348,26 @@ val lowPrimesAsString = integers.flatMap {
             <aside class="notes">This is a more classic monad: Using <code>Future[T]</code> means that your mapping functions produce a side-effect (being run in a separate thread).</aside>
           </section>
           <section>
-            <h3>A note on how <code>Future</code> works</h3>
-            <p>Any time you call a function that creates a new instance of <code>Future</code>, you need to pass in an implicit <code>scala.concurrent.ExecutionContext</code></p>
-            <p>For all practical purposes, this can be thought of as the pool of threads that will run your asynchronous code. See
-              <a href="http://www.scala-lang.org/api/current/index.html#scala.concurrent.ExecutionContext">the ExecutionContext Scaladoc</a> for more info.</p>
+            <h3>How <code>Future</code> works</h3>
+            <p>Whenever you call a function that creates a new <code>Future</code>, you need to pass in an implicit <code>scala.concurrent.ExecutionContext:</code></p>
+<pre><code class="scala">
+// Use the global execution context.
+val ec = scala.concurrent.ExecutionContext.Implicits.global
+
+// Note the second parameter list to apply.
+val myFuture = Future(doStuff())(ec)
+
+</code></pre>
+            <span class="fragment">
+              <p>This normally contains a thread pool to execute your code.</p>
+              <p>It's also valid to have an execution context that runs everything in the same thread, which can be useful in testing.</p>
+            </span>
+          </section>
+          <section>
+            <h3>More on <code>ExecutionContext</code></h3>
+            <p>Typically, these are global to the application, and frequently are shared with an actor system.</p>
+            <p>If you want a custom <code>ExecutionContext</code>, you can create one directly from an <code>Executor</code> or <code>ExecutorService</code>, from the <code>java.util.concurrent</code> package.
+            <aside class="notes">This is (often) not good, but makes for slightly easier-to-write code.</aside>
           </section>
         </section>
 
