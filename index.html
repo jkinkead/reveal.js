@@ -1,49 +1,159 @@
 <!doctype html>
 <html>
-	<head>
-		<meta charset="utf-8">
-		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
-		<title>reveal.js</title>
+    <title>reveal.js</title>
 
-		<link rel="stylesheet" href="css/reveal.css">
-		<link rel="stylesheet" href="css/theme/black.css">
+    <link rel="stylesheet" href="css/reveal.css">
+    <link rel="stylesheet" href="css/theme/noupper_white.css" id="theme">
 
-		<!-- Theme used for syntax highlighting of code -->
-		<link rel="stylesheet" href="lib/css/zenburn.css">
+    <!-- Theme used for syntax highlighting of code -->
+    <link rel="stylesheet" href="lib/css/zenburn.css">
+    <link rel="stylesheet" href="node_modules/xterm/dist/xterm.css" />
+    <script type="module">
+      // Import Xterm reqs.
+      import * as attach from './node_modules/xterm/dist/addons/attach/attach.js';
+      import * as fit from './node_modules/xterm/dist/addons/fit/fit.js';
+    </script>
 
-		<!-- Printing and PDF exports -->
-		<script>
-			var link = document.createElement( 'link' );
-			link.rel = 'stylesheet';
-			link.type = 'text/css';
-			link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
-			document.getElementsByTagName( 'head' )[0].appendChild( link );
-		</script>
-	</head>
-	<body>
-		<div class="reveal">
-			<div class="slides">
-				<section>Slide 1</section>
-				<section>Slide 2</section>
-			</div>
-		</div>
+    <!-- Printing and PDF exports -->
+    <script>
+      var link = document.createElement( 'link' );
+      link.rel = 'stylesheet';
+      link.type = 'text/css';
+      link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
+      document.getElementsByTagName( 'head' )[0].appendChild( link );
+    </script>
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+        <section><h1>Title Slide</h1></section>
+        <section>
+          <section>
+            <h2>Slide 2</h2>
+          </section>
+          <!-- Terminal slides MUST have a unique data-state="terminal-*" value. -->
+          <section data-state="terminal-example">
+            <h3>This is my terminal.</h3>
+            <!--
+              The terminal will be attached to the first child element with data-is-terminal.
+              The data-cwd attribute sets a relative or absolute working directory, and is optional.
+              Relative paths are created in the 'terms' directory in this package as needed.
+            -->
+            <div data-is-terminal data-cwd="subdir"></div>
+          </section>
+        </section>
+      </div>
+    </div>
 
-		<script src="lib/js/head.min.js"></script>
-		<script src="js/reveal.js"></script>
+    <script src="lib/js/head.min.js"></script>
+    <script src="js/reveal.js"></script>
 
-		<script>
-			// More info about config & dependencies:
-			// - https://github.com/hakimel/reveal.js#configuration
-			// - https://github.com/hakimel/reveal.js#dependencies
-			Reveal.initialize({
-				dependencies: [
-					{ src: 'plugin/markdown/marked.js' },
-					{ src: 'plugin/markdown/markdown.js' },
-					{ src: 'plugin/notes/notes.js', async: true },
-					{ src: 'plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } }
-				]
-			});
-		</script>
-	</body>
+    <script defer="true">
+      // Stores all terminal references, added as their slides come into view, by the state name.
+      var initializedTerminals = {};
+
+      // More info about config & dependencies:
+      // - https://github.com/hakimel/reveal.js#configuration
+      // - https://github.com/hakimel/reveal.js#dependencies
+      Reveal.initialize({
+        // Retain slide info in URL / history.
+        history: true,
+        dependencies: [
+          { src: 'plugin/markdown/marked.js' },
+          { src: 'plugin/markdown/markdown.js' },
+          { src: 'plugin/notes/notes.js', async: true },
+          { src: 'plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } },
+          { src: 'node_modules/xterm/dist/xterm.js', async: true, callback: function() {
+            Terminal.applyAddon(attach);
+            Terminal.applyAddon(fit);
+            var hostPort = location.hostname + ':' + location.port;
+            var terminalsUrl = 'http://' + hostPort + '/terminals';
+
+            var startSlide = Reveal.getCurrentSlide();
+
+            // Find all sections with an embedded terminal, and bind an event listener for when
+            // they're clicked into.
+            var sectionEls = document.querySelectorAll('section[data-state^="terminal"]');
+            sectionEls.forEach(function(section) {
+              var stateName = section.getAttribute('data-state');
+              var handler = function () {
+                if (initializedTerminals[stateName]) {
+                  return;
+                }
+                var terminalEl = section.querySelector('*[data-is-terminal]');
+                if (!terminalEl) {
+                  console.warn('section ' + stateName + ' had no associated terminal, ignoring');
+                  initializedTerminals[stateName] = true;
+                  return;
+                }
+                console.log('initializing terminal for section ' + stateName);
+                var pid = 0;
+                var term = initializedTerminals[stateName] = new Terminal({
+                  'macOptionIsMeta': true,
+                  // Use a light-colored theme. The default is a black background.
+                  'theme': {
+                    'background': '#eeeeee',
+                    'foreground': '#000000',
+                    'cursor': '#000000',
+                    'cursorAccent': '#ffffff',
+                    'selection': 'rgba(0, 0, 0, 0.3)',
+                  },
+                  // These values produce a legible terminal on a slide with a title + one line of
+                  // text, without the terminal falling off of the slide.
+                  'cols': 70,
+                  'rows': 18,
+                  'fontSize': 24
+                });
+                term.on('resize', function (size) {
+                  if (!pid) {
+                    return;
+                  }
+                  var cols = size.cols,
+                      rows = size.rows,
+                      url = terminalsUrl + '/' + pid + '/size?cols=' + cols + '&rows=' + rows;
+
+                  fetch(url, {method: 'POST'});
+                });
+                term.open(terminalEl);
+                term.fit();
+                Reveal.layout();
+
+                var cwd = terminalEl.getAttribute('data-cwd');
+                fetch(terminalsUrl + '?cols=' + term.cols + '&rows=' + term.rows +
+                        (cwd ? '&cwd=' + cwd : ''),
+                    {method: 'POST'}).then(function (res) {
+                  res.text().then(function (processId) {
+                    console.log('connecting to PID ' + processId);
+                    pid = processId;
+                    socket = new WebSocket('ws://' + hostPort + '/terminals/' + processId);
+                    socket.onopen = function() {
+                      term.attach(socket);
+                      term._initialized = true;
+                      term.fit();
+                      Reveal.layout();
+                    };
+                  });
+                });
+            };
+            if (startSlide === section) {
+              handler();
+            } else {
+              Reveal.addEventListener(stateName, handler, false);
+            };
+          });
+          } }
+        ]
+      });
+    </script>
+    <script>
+      // LiveReload Updates (hardcoded).
+      document.write('<script src="http://' + location.hostname +
+        ':35729/livereload.js?snipver=1"></' +
+        'script>');
+    </script>
+  </body>
 </html>

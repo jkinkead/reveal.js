@@ -90,15 +90,12 @@ module.exports = function(grunt) {
 			files: [ 'Gruntfile.js', 'js/reveal.js' ]
 		},
 
-		connect: {
-			server: {
-				options: {
-					port: port,
-					base: root,
-					livereload: true,
-					open: true,
-					useAvailablePort: true
-				}
+		express: {
+			dev: {
+			},
+			options: {
+				script: 'app.js',
+				port: port
 			}
 		},
 
@@ -143,6 +140,13 @@ module.exports = function(grunt) {
 			},
 			options: {
 				livereload: true
+			},
+			express: {
+				files: ['app.js'],
+				tasks: ['express:dev'],
+				options: {
+					spawn: false
+				}
 			}
 		},
 
@@ -154,13 +158,13 @@ module.exports = function(grunt) {
 	});
 
 	// Dependencies
-	grunt.loadNpmTasks( 'grunt-contrib-connect' );
 	grunt.loadNpmTasks( 'grunt-contrib-cssmin' );
 	grunt.loadNpmTasks( 'grunt-contrib-jshint' );
 	grunt.loadNpmTasks( 'grunt-contrib-qunit' );
 	grunt.loadNpmTasks( 'grunt-contrib-uglify' );
 	grunt.loadNpmTasks( 'grunt-contrib-watch' );
 	grunt.loadNpmTasks( 'grunt-autoprefixer' );
+	grunt.loadNpmTasks( 'grunt-express-server' );
 	grunt.loadNpmTasks( 'grunt-retire' );
 	grunt.loadNpmTasks( 'grunt-sass' );
 	grunt.loadNpmTasks( 'grunt-zip' );
@@ -184,7 +188,7 @@ module.exports = function(grunt) {
 	grunt.registerTask( 'package', [ 'default', 'zip' ] );
 
 	// Serve presentation locally
-	grunt.registerTask( 'serve', [ 'connect', 'watch' ] );
+	grunt.registerTask( 'serve', [ 'express:dev', 'watch' ] );
 
 	// Run tests
 	grunt.registerTask( 'test', [ 'jshint', 'qunit' ] );
