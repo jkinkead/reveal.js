@@ -4,13 +4,18 @@
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
-		<title>reveal.js</title>
+		<title>Speedy, Clear APIs</title>
 
 		<link rel="stylesheet" href="css/reveal.css">
-		<link rel="stylesheet" href="css/theme/black.css">
+		<link rel="stylesheet" href="css/theme/noupper_white.css" id="theme">
 
 		<!-- Theme used for syntax highlighting of code -->
 		<link rel="stylesheet" href="lib/css/zenburn.css">
+    <link rel="stylesheet" href="node_modules/xterm/dist/xterm.css" />
+    <script type="module">
+      import * as attach from './node_modules/xterm/dist/addons/attach/attach.js';
+      import * as fit from './node_modules/xterm/dist/addons/fit/fit.js';
+    </script>
 
 		<!-- Printing and PDF exports -->
 		<script>
@@ -24,15 +29,594 @@
 	<body>
 		<div class="reveal">
 			<div class="slides">
-				<section>Slide 1</section>
-				<section>Slide 2</section>
+        <section>
+          <h2>Speedy, Clear APIs</h2>
+          <p>Write faster services, right now, with protobufs.</p>
+        </section>
+
+        <section>
+          <section>
+            <h2>What are protocol buffers?</h2>
+            <p class="fragment">Protocol buffers are simple, fast, durable, cross-platform tools for writing services.</p>
+          </section>
+          <section>
+            <h3>More specifically...</h3>
+            <div style="text-align: left">
+              <p>Protocol buffers are messages, <span class="fragment">with a defined serialization
+                format,</span> <span class="fragment">and associated services;</span>
+                <span class="fragment">along with a definition language for these,</span>
+                <span class="fragment">and code generation tools.</span></p>
+              <p class="fragment">This is analogous to OpenAPI (Swagger).</p>
+            </div>
+          </section>
+          <section>
+            <h3>Key benefits</h3>
+            <ul>
+              <li>Fast, platform-independent serialization format</li>
+              <li>Excellent code generation tools from Google</li>
+              <li>Durable messages</li>
+              <li>Coupling of messages with APIs</li>
+            </ul>
+          </section>
+          <section>
+            <h3>Protocol Buffers run Google</h3>
+            <p>As much as any technology, protos make Google work.</p>
+            <p>They are used for:</p>
+            <ul>
+              <li>Virtually all service-to-service communication</li>
+              <li>Virtually all non-AdWords persisted data</li>
+            </ul>
+            <aside class="notes">Pre-Spanner (~2014) there was NO non-blob storage that wasn't pb
+              based.
+            I'm going to abbreviate more and more. You'll hear "proto" and "pb"
+              a lot out of me.</aside>
+          </section>
+          <section>
+            <h3>Protocol Buffers are NOT gRPC</h3>
+            <div style="text-align: left">
+              <p>You can define an RPC interface with the proto language.</p>
+              <p>gRPC is one implementation of this RPC interface.</p>
+              <p>More on this later...</p>
+            </div>
+          </section>
+        </section>
+
+				<section>
+          <section>
+            <h2>Protocol buffers are <i>simple</i></h2>
+            <p>The proto declaration language is very simple.</p>
+            <p>It's intuitive, and resembles C's struct syntax.</p>
+          </section>
+          <section>
+            <h3>Side-by-side comparison</h3>
+            Proto:
+          <pre><code data-trim>
+message Greeting {
+  string name = 1;
+}
+          </code></pre>
+            JSON Schema:
+          <pre><code class="json" data-trim>
+{
+  "title": "Greeting",
+  "type": "object",
+  "properties": {
+    "name": { "type": "string" }
+  }
+}
+          </code></pre>
+          <aside class="notes">
+            What about comments?
+          </aside>
+          </section>
+          <section>
+            <h3>Comments - it has 'em!</h3>
+          <pre><code data-trim>
+// Say "hello" or whatever.
+message Greeting {
+  // The target's name.
+  string name = 1;
+}
+          </code></pre>
+          <pre><code class="json" data-trim>
+{
+  "title": "Greeting",
+  "description": "Say \"hello\" or whatever. \"name\" holds the target's name.",
+  "type": "object",
+  "properties": {
+    "name": { "type": "string" }
+  }
+}
+          </code></pre>
+          <aside class="notes">
+            You can also do openapi in YAML, but comments there aren't part of the generated API.
+          </aside>
+          </section>
+          <section>
+            <h3>Sub-messages in PB</h3>
+          <pre><code data-trim>
+message Person {
+  string first_name = 1;
+  string last_name = 2;
+}
+message Greeting {
+  string salutation = 1;
+  Person person = 2;
+}
+          </code></pre>
+          <div class="ljust">
+            <p>Sub-messages are used like any other type, in a C-like syntax.</p>
+            <p>You can also nest message definitions for namespacing. This is common with enums.</p>
+          </div>
+          </section>
+          <section>
+            <h3>Sub-messages in JSON Schema</h3>
+          <pre><code class="json" data-trim>
+{
+  "definitions": {
+    "Person": {
+      "type": "object",
+      "properties": {
+        "first_name": { "type": "string" },
+        "last_name": { "type": "string" }
+      }
+    },
+    "Greeting": {
+      "type": "object",
+      "properties": {
+        "salutation": { "type": "string"},
+        "person": { "$ref": "#definitions/Person" }
+      }
+    }
+  }
+}
+          </code></pre>
+            <p>Sub-messages are linked with <code>$ref</code></p>
+            <aside class="notes">You <i>can</i> use YAML in OpenAPI 3.0.</aside>
+          </section>
+          <section data-state="codegen">
+            <h3>Code generation is really easy...</h3>
+            <div id="codegen"></div>
+            <aside class="notes">
+              <pre>cat *.proto
+protoc --java_out=. greeting.proto
+wc -l GreetingOuterClass.java</pre>
+              Note that there are much smaller options for Android.
+            </aside>
+          </section>
+          <section>
+            <h3>Built-in data types</h3>
+            <ul>
+              <li><code>int32, sint32, int64, </code>etc - integral types</li>
+              <li><code>bool, enum</code> - integral-serialized types</li>
+              <li><code>float, double</code> - floating-point types</li>
+              <li><code>string</code> - UTF-8 encoded strings</li>
+              <li><code>bytes</code> - binary strings</li>
+              <li><code>Any, oneof, map</code> - other goodies</li>
+              <li>All fields my be marked <code>repeated</code> to turn them into an array</li>
+            </ul>
+          </section>
+          <section>
+            <h3>Proto files can be imported</h3>
+            <p>If you want to reuse an existing model, it's very easy:</p>
+            <pre><code data-trim>
+  import "common/common.proto";
+
+  message LocalMessage {
+    common.CommonMessage cool_stuff = 1;
+  }
+            </code></pre>
+            <p>Imports are resolved C-style (based on commandline import flags).</p>
+          </section>
+        </section>
+
+
+				<section>
+          <section>
+            <h2>Protocol buffers are <i>fast</i></h2>
+
+            <p>Proto messages have a binary serialization format that is fast and compact.</p>
+            <aside class="notes">It is primarily designed for speed.</aside>
+          </section>
+          <section>
+            <h3>Index-based fields</h3>
+            <p>Remember the <code>= n</code> appended to field definitions?</p>
+          <pre><code data-trim>
+message Greeting {
+  string name = 1;
+}
+          </code></pre>
+          <p>This is the <i>field tag</i>, and is part of what makes pb serialization so efficient.</p>
+          <aside class="notes">It's also the main way durability is achieved.</aside>
+          </section>
+          <section>
+            <h3>Serializing a field</h3>
+            <div style="text-align: left;">
+            <p>The ID for a field takes one byte for tags &lt;= 15, and two bytes for tags &lt;=
+            2047.</p>
+            <p>JSON uses 3 (<code>"":</code>), plus the full field name.</p>
+            </div>
+          </section>
+
+          <section data-state="serializing">
+            <h3>Concrete Example</h3>
+            <div id="serializing"></div>
+            <aside class="notes">
+              Show contents of greeting.json . Raw data is 19 bytes in 5 fields (counting wrapper
+              and nested).
+              <pre>cat james.json |
+protox -output json \
+  greeting.proto Greeting
+| wc -c
+-output binary
+-output ascii</pre>
+            </aside>
+          </section>
+        </section>
+
+        <section>
+          <section>
+            <h2>Serialization details</h2>
+            <p>(most of) the gritty details.</p>
+            <aside class="notes">ETA 10-15 minutes.</aside>
+          </section>
+          <section>
+            <h3>High-level</h3>
+            <div class="ljust">
+              <p>Each field is preceeded by an int holding wire type + field tag.</p>
+              <p>Wire type is solely determined by declared type in proto file.</p>
+              <p>Only fields set to a non-default value are serialized.</p>
+            </div>
+          </section>
+          <section>
+            <h3>How it works: varint encoding (1/2)</h3>
+            <div class="ljust">
+            <p>Pbs serialize integers using "varint" encoding.</p>
+            <p>You can think of this as UTF-8-inspired little-endian base 128 encoding, if that helps.</p>
+            <p>Takes <code>ceil(log<sub>128</sub>(n))</code> bytes to encode value <code>n</code>.</p>
+            </div>
+          </section>
+          <section>
+            <h3>How it works: varint encoding (2/2)</h3>
+            <ol>
+              <li>Chunk two's-complement binary value into 7-bit chunks.</li>
+              <li class="fragment">Store chunks in bytes, with the high bit unset.</li>
+              <li class="fragment">Left-remove zero valued bytes.</li>
+              <li class="fragment">Set the high bit on all but the leftmost byte</li>
+              <li class="fragment">Transmit bytes, right to left.</li>
+            </ol>
+          </section>
+          <section>
+            <h3>Example: 298</h3>
+            <pre>// Encoding 298.
+                       256 +32+8+2
+00000000 00000000 00000001 00101010  =&gt;
+0000 0000000 0000000 0000010 0101010 =&gt;
+0x00 0x00    0x00    0x02    0x5a    =&gt;
+0x02 0x5a                            =&gt;
+0x02 0xda                            =&gt;
+[0xda,0x02] // Wire-order.
+            </pre>
+          </section>
+          <section>
+            <h3>Negative numbers?</h3>
+            <div class="ljust">
+              <p>Varint is used drectly for <code>int*, uint*, bool, enum</code> types.</p>
+              <p>Doesn't specify target value size!</p>
+              <span class="fragment">
+              <p>Negative two's-complement will always use full 10 bytes...</p>
+              <p><code>sint*</code> also uses varint, but goes through zig-zag encoding first.</p>
+              </span>
+            </div>
+          </section>
+          <section>
+            <h3>Zig-zag</h3>
+            <div class="ljust">
+              <p>1 maps to 2, -1 maps to 3, 2 maps to 4, etc.</p>
+              <p>Wire values bounce between negative and positive real values.</p>
+              <p>Formula: <code>abs(n * 2) + (n &gt; 0 ? 0 : 1)</code>
+              <p class="fragment">Or if you're clever:<code>(n &lt;&lt; 1) | (n &gt;&gt; 31)</code>(32-bit; 64-bit is your take-home work)</p>
+            </div>
+          </section>
+          <section>
+            <h3>Field header details</h3>
+            <div class="ljust">
+            <p>Back to the field header! It is a varint holding <code>(tag_value &lt;&lt; 3) |
+              wire_type_code</code>.</p>
+            <p>This is why smaller field tags serialize smaller!</p>
+            <p>If you have a field that will be
+            repeated millions of times, consider using a small tag. Otherwise, you can ignore this
+            fact safely.</p>
+            </div>
+          </section>
+          <section>
+            <h3>Other wire types</h3>
+            <ul>
+              <li>Fixed-width (32- or 64-bit) - Used for floating-point and fixed integers.</li>
+              <li>Length-delimited - Used for strings, bytes, and messages. One varint with length
+                followed by the body.</li>
+              <li>Strings are serialized as UTF-8.</li>
+            </ul>
+          </section>
+        </section>
+
+				<section>
+          <section>
+            <h2>Protocol buffers are <i>durable</i></h2>
+
+            <p>Tag-based serialization means protocol buffers can <i>always</i> be deserialized . .
+            . if you don't reuse field tags.</p>
+
+            <aside class="notes">ETA 15-20 minutes.</aside>
+          </section>
+          <section>
+            <h3>Field renaming is trival</h3>
+            <p>Have you ever found yourself in this situation?</p>
+          <pre><code data-trim>
+message HttpRequest {
+  string referer = 1;
+}
+          </code></pre>
+          </section>
+          <section data-state="referer">
+            <h3>JSON vs. pb</h3>
+            <div id="referer"></div>
+            <aside class="notes">
+              v1.json has example referrer.
+              output binary; save.
+              change field name.
+              show json can't deserialize, but binary can.
+              <pre>cat v1.json | protox \
+  -output binary http.proto \
+  HttpRequest &gt; outputv1.pb
+vim http.proto
+cat v1.json | protox http.proto HttpRequest
+cat outputv1.pb | protox http.proto HttpRequest</pre>
+            </aside>
+          </section>
+          <section>
+            <h3>More details</h3>
+            <div class="ljust">
+            <p>Serializers MUST ignore unknown fields. This makes adding fields fairly easy.</p>
+            <p>Single fields can be upgraded to Repeated fields.</p>
+            <p>Varint fields can be widened (or narrowed, if you're OK truncating).</p>
+            <p>Plus, you can always reuse names...</p>
+            <p class="fragment"><b>Protocol serialization provides only just enough validation to ensure efficient
+              serialization.</b></p>
+            </div>
+          </section>
+          <section data-state="upgrade-field">
+            <h3>Upgrading example</h3>
+            <div id="upgrade-field"></div>
+            <aside class="notes">
+              Open proto file.
+              Generate java code; change referrer type; regenerate. Use <code>reserved 1;</code>.
+            </aside>
+          </section>
+        </section>
+
+				<section>
+          <section>
+            <h2>Protocol buffers are <i>cross-platform</i></h2>
+            <p>The code generation tools are powerful, and use language-specific idioms and
+            features.</p>
+            <aside class="notes">ETA 20-30 minutes</aside>
+          </section>
+          <section>
+            <h3>Case study: Java</h3>
+            <p>Java idioms are used:</p>
+            <ul>
+              <li><code>snake_case</code> becomes <code>snakeCase</code> in field names.</li>
+              <li><code>MethodCall</code> becomes <code>methodCall</code> in RPC stubs.</li>
+            </ul>
+          </section>
+          <section data-state="java-features">
+            <h3>Using Java options</h3>
+            <div id="java-features"></div>
+            <aside class="notes">Show generated code. Show comments getting embedded into the code.
+              Show package and java_package.
+              <code>java_package</code> and <code>java_multiple_files</code> and
+              <code>java_outer_classname</code>.
+            </aside>
+          </section>
+        </section>
+
+        <section>
+          <section>
+            <h2>More language features</h2>
+
+            <aside class="notes">ETA 20-30 minutes</aside>
+          </section>
+          <section>
+            <h3>More built-ins: <code>enums</code></h3>
+          <pre><code data-trim>
+enum ResponseCode {
+  OK = 200;
+  NOT_FOUND = 404;
+  // TODO: more!
+}
+          </code></pre>
+            <p>Enums are serialized as ints, but parsed into a language-appropriate enum.
+          </section>
+          <section>
+            <h3>More built-ins: <code>maps</code></h3>
+            <p>Associated maps are allowed with integeral or string keys:</p>
+          <pre><code data-trim>
+message Greeting {
+  string name = 1;
+  map&lt;string, string&gt; salutations_by_language = 2;
+}
+          </code></pre>
+          </section>
+          <section>
+            <h3>More built-ins: <code>oneof</code></h3>
+            <p>For when you want to emulate polymorphism:</p>
+          <pre><code data-trim>
+message Product {
+  oneof {
+    Clothing pants = 1;
+    Clothing shirt = 2;
+    Appliance cuisinart = 3;
+  }
+}
+          </code></pre>
+          <p><code>oneof</code> is slightly tricky to move fields in an out of. Read the docs!</p>
+          </section>
+          <section>
+            <h3>Google extensions: Any</h3>
+            <p><code>Any</code> is a placeholder with special library support:</p>
+            <pre><code data-trim>
+  import "google/protobuf/any.proto";
+
+  message ErrorStatus {
+    string message = 1;
+    repeated google.protobuf.Any details = 2;
+  }
+            </code></pre>
+            <p>This can be dynamically deserialized into the correct message type (if you have
+            the deserializer for it).</p>
+          </section>
+          <section>
+            <h3>Other Google extensions</h3>
+            <p>Google as several other useful extension classes:</p>
+            <ul>
+              <li>Struct, a JSON-like object tree</li>
+              <li>Empty, for when you need a placeholder</li>
+              <li>Wrapper classes for primitives, for when you need a message type</li>
+            </ul>
+          </section>
+        </section>
+
+        <section>
+          <section>
+            <h2>Service definitions</h2>
+
+            <p>This is really what you're here for, right?</p>
+          </section>
+
+          <section>
+            <h3>Service definition language</h3>
+            <p>Services are defined in a C-like way, just as with messages:</p>
+          <pre><code data-trim>
+// Define a service with multiple methods.
+service Greeter {
+  // Define a single method.
+  rpc Hello (HelloRequest) returns (HelloReply) {}
+}
+          </code></pre>
+          <p>Best-practice is to use a dedicated message for requests and replies.</p>
+          <p>This helps when you want to add fields.</p>
+          </section>
+
+          <section>
+            <h3>Complete example</h3>
+          <pre><code data-trim>
+message Person {
+  string first_name = 1;
+  string last_name = 2;
+}
+message Greeting {
+  string salutation = 1;
+  Person person = 2;
+}
+message HelloRequest { Person person = 1; }
+message HelloReply { string reply = 1; }
+
+service Greeter {
+  rpc Hello (HelloRequest) returns (HelloReply) {}
+}
+          </code></pre>
+          </section>
+
+          <section>
+            <h3>Streaming</h3>
+            <p>RPCs may be declared as uni- or bi-directional streaming:</p>
+            <pre><code data-trim>
+  service Catalog {
+    rpc Search (SearchRequest) returns (stream Product) {}
+    rpc Update (stream Product) returns (UpdateResponse) {}
+    rpc Lookup (stream ProductId) returns (stream Product) {}
+  }
+            </code></pre>
+            <p class="fragment">Caveat: True streaming requires HTTP/2.</p>
+          </section>
+
+          <section>
+            <h3>gRPC overview</h3>
+            <p>gRPC is a tiny layer on top of HTTP/2:</p>
+            <ul>
+              <li>Custom content type (<code>application/grpc</code>)</li>
+              <li>POST to <code>{ServiceName}/{MethodName}</code></li>
+              <li>All messages are transmitted with a four-byte length prefix</li>
+              <li>Streaming innate to HTTP/2 data frames</li>
+            </ul>
+          </section>
+
+          <section data-state="grpc">
+            <h3>Java Greeter</h3>
+            <div id="grpc"></div>
+            <aside class="notes">Cat build script; show command.
+              Build, search for "GreeterImpl".
+              Show 'hello' method (to override).
+            </aside>
+          </section>
+
+          <section>
+            <h3>REST APIs</h3>
+            <p>What's cool is you can easily implement a non-streaming API with standard REST:</p>
+            <ul>
+              <li>All requests are POST</li>
+              <li>Paths are <code>{ServiceName}/{MethodName}</code></li>
+              <li>Auth is handled in headers</li>
+              <li>Accepts binary (<code>application/protobuf</code>) or JSON</li>
+              <li>Many stream features can be emulated by replacing streams with arrays</li>
+            </ul>
+            <p class="fragment">Great news - xrpc supports this!</p>
+          </section>
+
+          <section>
+            <h3>High-performance Java APIs with xrpc</h3>
+            <p>xrpc is developed in-house by the platform team.</p>
+            <p>Soon to support service generation from proto file.</p>
+            <p>See github.com/Nordstrom/xrpc and #xrpc-users for more info.</p>
+          </section>
+        </section>
+
+        <section>
+          <section>
+            <h2>In Conclusion...</h2>
+            <p>Protocol buffers are the future!</p>
+          </section>
+          <section>
+            <h3>Key takeaways</h3>
+            <ul>
+              <li>Protobufs are better than JSON (and support JSON when you need it)</li>
+              <li>Tier 1 services must support protobuf</li>
+              <li>APIM &amp; xrpc will support natively</li>
+              <li>MOST IMPORTANTLY - Don't reuse field tags!</li>
+            </ul>
+          </section>
+        </section>
+
+
+        <section>
+          <section>
+            <h2>Appendix</h2>
+            <ul>
+              <li>Slides created with reveal.js (github.com/hakimel/reveal.js) and xterm.js
+                (github.com/xtermjs/xterm.js)</li>
+              <li>I'll forward slides (and template project) to NEDx channel when they're cleaned-up</li>
+            </ul>
+          </section>
+        </section>
 			</div>
 		</div>
 
 		<script src="lib/js/head.min.js"></script>
 		<script src="js/reveal.js"></script>
 
-		<script>
+		<script defer="true">
+      var terminalsById = {};
 			// More info about config & dependencies:
 			// - https://github.com/hakimel/reveal.js#configuration
 			// - https://github.com/hakimel/reveal.js#dependencies
@@ -41,7 +625,64 @@
 					{ src: 'plugin/markdown/marked.js' },
 					{ src: 'plugin/markdown/markdown.js' },
 					{ src: 'plugin/notes/notes.js', async: true },
-					{ src: 'plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } }
+					{ src: 'plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } },
+          { src: 'node_modules/xterm/dist/xterm.js', async: true, callback: function() {
+            Terminal.applyAddon(attach);
+            Terminal.applyAddon(fit);
+            var baseUrl = 'http://localhost:3000';
+
+            var terminalEls = ['codegen', 'serializing', 'referer', 'upgrade-field',
+                'java-features', 'grpc'];
+            terminalEls.forEach(function(elementId) {
+              Reveal.addEventListener(elementId, function () {
+                if (terminalsById[elementId]) {
+                  return;
+                }
+                console.log('loading terminal ' + elementId);
+                var pid = 0;
+                var term = terminalsById[elementId] = new Terminal();
+                term.setOption('macOptionIsMeta', true);
+                term.setOption('theme', {
+                  'background': '#eeeeee',
+                  'foreground': '#000000',
+                  'cursor': '#000000',
+                  'cursorAccent': '#ffffff',
+                  'selection': 'rgba(0, 0, 0, 0.3)',
+                });
+                term.on('resize', function (size) {
+                  if (!pid) {
+                    return;
+                  }
+                  var cols = size.cols,
+                      rows = size.rows,
+                      url = baseUrl + '/terminals/' + pid + '/size?cols=' + cols + '&rows=' + rows;
+
+                  fetch(url, {method: 'POST'});
+                });
+                term.open(document.getElementById(elementId));
+                term.setOption('cols', 70);
+                term.setOption('rows', 18);
+                term.setOption('fontSize', 24);
+                term.fit();
+                Reveal.layout();
+                fetch(baseUrl + '/terminals?cols=' + term.cols + '&rows=' + term.rows +
+
+                        '&subdir=' + elementId,
+                    {method: 'POST'}).then(function (res) {
+                  res.text().then(function (processId) {
+                    console.log('connecting to terminal ' + processId);
+                    pid = processId;
+                    socket = new WebSocket('ws://localhost:3000/terminals/' + processId);
+                    socket.onopen = function() {
+                      term.attach(socket);
+                      term._initialized = true;
+                    };
+                  });
+                });
+                console.log('inited ' + elementId);
+            }, false);
+            });
+          } }
 				]
 			});
 		</script>
