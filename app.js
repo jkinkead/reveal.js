@@ -7,7 +7,7 @@ var pty = require('node-pty');
 var serveStatic = require('serve-static');
 
 // Override with your favorite shell (or other command).
-var entrypoint = process.platform === 'win32' ? 'cmd.exe' : 'fish';
+var entrypoint = process.platform === 'win32' ? 'cmd.exe' : 'bash';
 var args = [];
 
 var terminals = {},
